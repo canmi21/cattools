@@ -15,11 +15,16 @@ Blog: <https://www.miaoer.net/posts/blog/cattools>
 curl https://raw.githubusercontent.com/miaoermua/cattools/main/install.sh | bash
 ```
 
-如无法安装使用
+如无法安装使用，如还不行请提交 [issues](https://github.com/miaoermua/cattools/issues) 或者 [进群](https://www.miaoer.net/posts/blog/guide)。
 
 ```bash
 wget -O /usr/bin/cattools https://raw.miaoer.net/cattools/cattools.sh && chmod +x /usr/bin/cattools
 ```
+## 设计目的
+
+设计的目的是方便用户进行高阶操作，根据博客文档进行操作，可以轻松完成各类配置操作。
+
+中英文是因为物理机的显示是方块字 ⬛️，如果使用中文加数字第一时间很难看出来，所以首页的常用功能设为中英简要对照。更多工具着依赖网络服务，如重设密码和重置系统为高危命令，需要对照相关文档进行操作。
 
 ## Todo
 
@@ -27,6 +32,9 @@ wget -O /usr/bin/cattools https://raw.miaoer.net/cattools/cattools.sh && chmod +
 
 - [x] 热更新和安装脚本
 - [x] 命令行参数
+- [x] 可集成至 OpenWrt
+
+
 - [x] 1. SetIP                                  -  设置 IP
 - [x] 2. Network_Wizard                         -  网络向导(支持旁路)
 - [x] 3. Apply_repo                             -  软件源配置（云配置）
