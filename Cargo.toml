@@ -1,6 +1,6 @@
 [package]
 name = "catools"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 authors = ["miaoermua", "canmi"]
 license = "GPL-2.0"
