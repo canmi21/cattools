@@ -4,11 +4,17 @@ use crate::error::Result;
 use crate::utils::system::run_command;
 use std::fs;
 
+fn now_string() -> String {
+    run_command("date", &["+%Y-%m-%d %H:%M:%S"])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unknown-time".to_string())
+}
+
 /// Network diagnostic
 pub fn network_diagnostic() -> Result<()> {
     println!(
         "\n{} - Starting CatWrt Network Diagnostics",
-        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        now_string()
     );
     println!();
 
@@ -99,7 +105,7 @@ pub fn network_diagnostic() -> Result<()> {
 
     println!(
         "{} - Network check completed!",
-        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+        now_string()
     );
     println!("CatWrt Network Diagnostics by @miaoermua");
 
@@ -124,7 +130,7 @@ pub fn system_debug() -> Result<()> {
     }
 
     // Date
-    log_content.push_str(&format!("{}\n\n", chrono::Local::now()));
+    log_content.push_str(&format!("{}\n\n", now_string()));
 
     // Release info
     log_content.push_str("## RELEASE\n");

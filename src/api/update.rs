@@ -2,6 +2,7 @@
 
 use crate::constants::API_UPDATE_URL;
 use crate::error::Result;
+use crate::utils::system::download_text;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,9 +26,9 @@ struct UpdateData {
 }
 
 pub fn fetch_update_info() -> Result<UpdateInfo> {
-    let response = reqwest::blocking::get(API_UPDATE_URL)
-        .and_then(|r| r.json::<ApiResponse>())
-        .map_err(|e| crate::error::CatoolsError::ApiError(format!("获取更新信息失败: {}", e)))?;
+    let body = download_text(API_UPDATE_URL)?;
+    let response: ApiResponse = serde_json::from_str(&body)
+        .map_err(|e| crate::error::CatoolsError::ApiError(format!("解析更新信息失败: {}", e)))?;
 
     if response.code != 200 {
         return Err(crate::error::CatoolsError::ApiError(

@@ -29,6 +29,9 @@ pub enum CatoolsError {
 
     #[error("Dialog error: {0}")]
     DialogError(#[from] dialoguer::Error),
+
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
 }
 
 pub type Result<T> = std::result::Result<T, CatoolsError>;

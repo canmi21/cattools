@@ -2,7 +2,7 @@
 
 use crate::error::Result;
 use crate::uci::Uci;
-use crate::utils::system::{restart_service, run_command};
+use crate::utils::system::{download_to_file, run_command, run_shell, restart_service};
 use dialoguer::{Confirm, Input};
 use std::fs;
 use std::path::Path;
@@ -43,13 +43,8 @@ pub fn configure_mihomo() -> Result<()> {
     );
 
     println!("\n下载 Mihomo 内核...");
-    let kernel_content = reqwest::blocking::get(&download_url)
-        .and_then(|r| r.bytes())
-        .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载失败: {}", e)))?;
-
-    // Save kernel
     let kernel_path = "/tmp/clash.meta";
-    fs::write(kernel_path, kernel_content)?;
+    download_to_file(&download_url, kernel_path)?;
 
     // Make executable
     run_command("chmod", &["+x", kernel_path])?;
@@ -116,12 +111,8 @@ pub fn configure_leigod() -> Result<()> {
     // Download and run install script
     println!("\n下载安装脚本...");
     let script_url = "https://leigod.cdn.legdun.com/download/lgdrelease/shell/leigod_install.sh";
-    let script_content = reqwest::blocking::get(script_url)
-        .and_then(|r| r.text())
-        .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载失败: {}", e)))?;
-
     let script_path = "/tmp/leigod_install.sh";
-    fs::write(script_path, script_content)?;
+    download_to_file(script_url, script_path)?;
 
     run_command("chmod", &["+x", script_path])?;
 
@@ -184,58 +175,37 @@ pub fn deploy_ssl_cert() -> Result<()> {
         return Ok(());
     }
 
-    // Extract ZIP
+    // Extract ZIP using system unzip command (OpenWrt dependency)
     println!("\n解压证书文件...");
-    let file = fs::File::open(&cert_path)?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
-        crate::error::CatoolsError::IoError(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            e.to_string(),
-        ))
-    })?;
-
     let extract_dir = "/tmp/ssl_cert";
     let _ = fs::remove_dir_all(extract_dir);
     fs::create_dir_all(extract_dir)?;
-
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| {
-            crate::error::CatoolsError::IoError(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                e.to_string(),
-            ))
-        })?;
-        let outpath = Path::new(extract_dir).join(file.name());
-
-        if file.is_dir() {
-            fs::create_dir_all(&outpath)?;
-        } else {
-            if let Some(p) = outpath.parent() {
-                fs::create_dir_all(p)?;
-            }
-            let mut outfile = fs::File::create(&outpath)?;
-            std::io::copy(&mut file, &mut outfile)?;
-        }
-    }
+    run_command("unzip", &["-o", &cert_path, "-d", extract_dir]).or_else(|_| {
+        run_shell(&format!(
+            "busybox unzip -o '{}' -d '{}'",
+            cert_path, extract_dir
+        ))
+    })?;
 
     println!("✓ 证书文件已解压到: {}", extract_dir);
 
     // Find certificate files
     println!("\n查找证书文件...");
-    let entries = fs::read_dir(extract_dir)?;
+    let list_output = run_command("find", &[extract_dir, "-type", "f"]).or_else(|_| {
+        run_shell(&format!(
+            "busybox find '{}' -type f",
+            extract_dir
+        ))
+    })?;
 
-    let mut cert_file = None;
-    let mut key_file = None;
+    let mut cert_file: Option<String> = None;
+    let mut key_file: Option<String> = None;
 
-    for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-        let filename = path.to_str().unwrap_or("");
-
+    for filename in list_output.lines() {
         if filename.ends_with(".pem") || filename.ends_with(".crt") {
-            cert_file = Some(path.clone());
+            cert_file = Some(filename.to_string());
         } else if filename.ends_with(".key") {
-            key_file = Some(path.clone());
+            key_file = Some(filename.to_string());
         }
     }
 
@@ -247,8 +217,8 @@ pub fn deploy_ssl_cert() -> Result<()> {
     let cert_file = cert_file.unwrap();
     let key_file = key_file.unwrap();
 
-    println!("找到证书: {:?}", cert_file);
-    println!("找到密钥: {:?}", key_file);
+    println!("找到证书: {}", cert_file);
+    println!("找到密钥: {}", key_file);
 
     // Copy to uhttpd directory
     let dest_cert = "/etc/uhttpd.crt";

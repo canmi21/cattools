@@ -2,7 +2,7 @@
 
 use crate::constants::{BACKUP_FILE, BETA_MIRROR_OPTIONS, COMMON_PACKAGES, MIRROR_OPTIONS};
 use crate::error::Result;
-use crate::utils::system::run_command;
+use crate::utils::system::{download_text, download_to_file, run_command};
 use dialoguer::{Confirm, Input, Select};
 use std::collections::HashSet;
 use std::fs;
@@ -96,8 +96,7 @@ pub fn apply_repo() -> Result<()> {
     println!("[INFO] 下载配置: {}", conf_url);
 
     // Download config
-    let config_content = reqwest::blocking::get(&conf_url)
-        .and_then(|r| r.text())
+    let config_content = download_text(&conf_url)
         .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载配置失败: {}", e)))?;
 
     // Write config
@@ -265,11 +264,7 @@ pub fn install_ipk() -> Result<()> {
             let tmp_path = format!("/tmp/{}", filename);
 
             println!("下载 {}...", url);
-            let content = reqwest::blocking::get(&url)
-                .and_then(|r| r.bytes())
-                .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载失败: {}", e)))?;
-
-            fs::write(&tmp_path, content)?;
+            download_to_file(&url, &tmp_path)?;
 
             println!("安装 {}...", filename);
             run_command("opkg", &["install", &tmp_path])?;

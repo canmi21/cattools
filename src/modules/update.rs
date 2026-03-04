@@ -3,7 +3,7 @@
 use crate::api::update::fetch_update_info;
 use crate::constants::{SYSUP_AMD64_URL, SYSUP_MT798X_URL, SYSUP_MT7621_URL};
 use crate::error::Result;
-use crate::utils::system::run_command;
+use crate::utils::system::{download_text, run_command};
 use crate::utils::validation::compare_version;
 use dialoguer::{Confirm, Select};
 use std::fs;
@@ -113,9 +113,7 @@ pub fn system_upgrade() -> Result<()> {
 
     // Download sysupgrade script
     println!("\n下载升级脚本...");
-    let script_content = reqwest::blocking::get(sysup_url)
-        .and_then(|r| r.text())
-        .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载失败: {}", e)))?;
+    let script_content = download_text(sysup_url)?;
 
     let script_path = "/tmp/sysupgrade.sh";
     fs::write(script_path, script_content)?;

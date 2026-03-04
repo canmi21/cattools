@@ -46,6 +46,25 @@ pub fn run_command(cmd: &str, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+pub fn run_shell(command: &str) -> Result<String> {
+    run_command("sh", &["-c", command])
+}
+
+pub fn download_text(url: &str) -> Result<String> {
+    run_command("uclient-fetch", &["-qO-", url])
+        .or_else(|_| run_command("wget", &["-qO-", url]))
+        .or_else(|_| run_command("curl", &["-fsSL", url]))
+        .map_err(|e| CatoolsError::ApiError(format!("下载失败: {}", e)))
+}
+
+pub fn download_to_file(url: &str, path: &str) -> Result<()> {
+    run_command("uclient-fetch", &["-qO", path, url])
+        .or_else(|_| run_command("wget", &["-qO", path, url]))
+        .or_else(|_| run_command("curl", &["-fsSL", "-o", path, url]))
+        .map_err(|e| CatoolsError::ApiError(format!("下载失败: {}", e)))?;
+    Ok(())
+}
+
 pub fn restart_service(service: &str) -> Result<()> {
     run_command("/etc/init.d", &[service, "restart"])?;
     Ok(())

@@ -10,29 +10,29 @@ mod modules;
 mod uci;
 mod utils;
 
-use anyhow::{Context, Result};
-use clap::Parser;
-
 use crate::cli::Cli;
 use crate::config::Config;
+use crate::error::{CatoolsError, Result};
 use crate::menu::{Menu, MenuOption, UtilitiesMenuOption};
 use crate::utils::system::{check_openwrt, check_root, patch_banner_domains, patch_catwrt_release};
 
 fn main() -> Result<()> {
-    // Initialize logger
-    env_logger::init();
-
     // Check root privileges
-    check_root().context("Root permission check failed")?;
+    check_root().map_err(|e| {
+        CatoolsError::CommandError(format!("Root permission check failed: {}", e))
+    })?;
 
     // Check OpenWrt system
-    check_openwrt().context("OpenWrt system check failed")?;
+    check_openwrt().map_err(|e| {
+        CatoolsError::CommandError(format!("OpenWrt system check failed: {}", e))
+    })?;
 
     // Parse CLI arguments
     let _args = Cli::parse();
 
     // Load configuration
-    let config = Config::load().context("Failed to load configuration")?;
+    let config = Config::load()
+        .map_err(|e| CatoolsError::ConfigError(format!("Failed to load configuration: {}", e)))?;
 
     // Apply system patches
     let _ = patch_catwrt_release();
@@ -40,7 +40,7 @@ fn main() -> Result<()> {
 
     // Main loop
     loop {
-        match Menu::show().context("Failed to show menu")? {
+        match Menu::show()? {
             MenuOption::SetIp => {
                 if let Err(e) = modules::network::set_ip_address(&config) {
                     eprintln!("错误: {}", e);
@@ -96,7 +96,7 @@ fn main() -> Result<()> {
 
 fn handle_utilities_menu() -> Result<()> {
     loop {
-        match Menu::show_utilities().context("Failed to show utilities menu")? {
+        match Menu::show_utilities()? {
             UtilitiesMenuOption::ConfigureMihomo => {
                 if let Err(e) = modules::advanced::configure_mihomo() {
                     eprintln!("错误: {}", e);
