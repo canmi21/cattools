@@ -2,7 +2,8 @@
 
 use crate::constants::{BACKUP_FILE, BETA_MIRROR_OPTIONS, COMMON_PACKAGES, MIRROR_OPTIONS};
 use crate::error::Result;
-use crate::utils::system::{download_text, download_to_file, run_command};
+use crate::utils::system::{download_text, download_to_file, run_command, url_exists};
+use crate::{api::repo::fetch_repo_source, constants::BASE_REPO_URL};
 use dialoguer::{Confirm, Input, Select};
 use std::collections::HashSet;
 use std::fs;
@@ -30,8 +31,13 @@ pub fn apply_repo() -> Result<()> {
     println!("\n当前架构: {}", arch);
     println!("当前版本: {}", version);
 
-    // Determine if beta
-    let is_beta = version.contains("beta") || version.contains("Beta");
+    let mut repo_url = format!("{}/{}", BASE_REPO_URL, arch);
+    let mut is_beta = version.contains("beta") || version.contains("Beta");
+
+    if let Ok(Some(source)) = fetch_repo_source(arch, version) {
+        repo_url = source.url;
+        is_beta = source.beta;
+    }
 
     println!("\nINFO ================================================================");
     println!(
@@ -87,31 +93,47 @@ pub fn apply_repo() -> Result<()> {
         }
     };
 
-    // Construct URL
-    let conf_url = format!(
-        "https://raw.miaoer.net/cattools/repo/{}/{}/{}",
-        arch, version, conf_file
-    );
+    let conf_url = format!("{}/{}", repo_url.trim_end_matches('/'), conf_file);
 
     println!("[INFO] 下载配置: {}", conf_url);
 
+    if !url_exists(&conf_url) {
+        if repo_url.contains("/history/") {
+            let fallback_url = format!("{}/{}/{}", BASE_REPO_URL, arch, conf_file);
+            println!("[WARN] 历史源配置不存在，尝试回退: {}", fallback_url);
+            if url_exists(&fallback_url) {
+                println!("[INFO] 使用回退软件源配置");
+                apply_repo_with_url(&fallback_url)?;
+                return Ok(());
+            }
+        }
+
+        return Err(crate::error::CatoolsError::ApiError(format!(
+            "repo conf 不存在: {}",
+            conf_url
+        )));
+    }
+
     // Download config
-    let config_content = download_text(&conf_url)
-        .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载配置失败: {}", e)))?;
-
-    // Write config
-    fs::write("/etc/opkg/distfeeds.conf", config_content)?;
-
-    // Clean up locks
-    let _ = fs::remove_file("/var/lock/opkg.lock");
-    let _ = fs::remove_file("/var/opkg-lists/istore_compat");
-
-    // Update
-    println!("[INFO] 更新软件源索引...");
-    run_command("opkg", &["update"])?;
+    apply_repo_with_url(&conf_url)?;
 
     println!("✓ 软件源配置已完成！");
     println!("  可以使用 opkg install <pkg> 来安装插件/组件/内核模块");
+
+    Ok(())
+}
+
+fn apply_repo_with_url(conf_url: &str) -> Result<()> {
+    let config_content = download_text(conf_url)
+        .map_err(|e| crate::error::CatoolsError::ApiError(format!("下载配置失败: {}", e)))?;
+
+    fs::write("/etc/opkg/distfeeds.conf", config_content)?;
+
+    let _ = fs::remove_file("/var/lock/opkg.lock");
+    let _ = fs::remove_file("/var/opkg-lists/istore_compat");
+
+    println!("[INFO] 更新软件源索引...");
+    run_command("opkg", &["update"])?;
 
     Ok(())
 }

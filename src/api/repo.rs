@@ -1,21 +1,28 @@
 /* src/api/repo.rs */
 
-#![allow(dead_code)]
-
+use crate::constants::API_REPO_CONFIG_URL;
 use crate::error::Result;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::utils::system::download_text;
+use serde::Deserialize;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RepoConfig {
-    pub mirrors: HashMap<String, String>,
-    pub arch_configs: HashMap<String, HashMap<String, String>>,
+#[derive(Debug, Clone, Deserialize)]
+pub struct RepoSource {
+    pub url: String,
+    #[serde(default)]
+    pub beta: bool,
 }
 
-pub fn fetch_repo_config() -> Result<RepoConfig> {
-    // TODO: implement API call
-    Ok(RepoConfig {
-        mirrors: HashMap::new(),
-        arch_configs: HashMap::new(),
-    })
+pub fn fetch_repo_source(arch: &str, version: &str) -> Result<Option<RepoSource>> {
+    let body = download_text(API_REPO_CONFIG_URL)?;
+    let root: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| crate::error::CatoolsError::ApiError(format!("解析软件源配置失败: {}", e)))?;
+
+    let Some(entry) = root.get(arch).and_then(|node| node.get(version)) else {
+        return Ok(None);
+    };
+
+    let source: RepoSource = serde_json::from_value(entry.clone())
+        .map_err(|e| crate::error::CatoolsError::ApiError(format!("解析软件源配置失败: {}", e)))?;
+
+    Ok(Some(source))
 }
